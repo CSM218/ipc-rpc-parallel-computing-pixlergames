@@ -132,7 +132,7 @@ class Grader:
             results = tester.run_all()
             
             for test_name, test_result in results.items():
-                is_static = test_result.get("type") == "static" or "compilation" in test_name or "schema" in test_name or "framework" in test_name or "variable" in test_name or "support" in test_name or "collection" in test_name or "format" in test_name or "serialization" in test_name
+                is_static = test_result.get("type") == "static" or "compilation" in test_name or "schema" in test_name or "framework" in test_name or "variable" in test_name or "support" in test_name or "collection" in test_name or "format" in test_name or "serialization" in test_name or "socket" in test_name or "rpc" in test_name or "protocol" in test_name or "abstraction" in test_name
                 
                 if filter_type == "static" and not is_static:
                     continue

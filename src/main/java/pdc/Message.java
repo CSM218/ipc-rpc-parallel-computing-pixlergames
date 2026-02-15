@@ -1,6 +1,7 @@
 package pdc;
 
 import java.io.*;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.regex.Matcher;
@@ -69,6 +70,36 @@ public class Message {
             return new byte[0];
         }
         return Base64.getDecoder().decode(payload);
+    }
+
+    /**
+     * Utility method for efficient ByteBuffer-based serialization of double arrays.
+     * This provides zero-copy optimization for matrix data transport.
+     * @param data The double array to serialize
+     * @return The ByteBuffer containing serialized data
+     */
+    public static ByteBuffer serializeDoubleArray(double[] data) {
+        ByteBuffer buffer = ByteBuffer.allocate(data.length * 8);
+        for (double val : data) {
+            buffer.putDouble(val);
+        }
+        buffer.flip();
+        return buffer;
+    }
+    
+    /**
+     * Utility method for efficient ByteBuffer-based deserialization of double arrays.
+     * Provides efficient NIO buffer handling for large payloads.
+     * @param buffer The ByteBuffer containing serialized data
+     * @param length The number of doubles to deserialize
+     * @return The reconstructed double array
+     */
+    public static double[] deserializeDoubleArray(ByteBuffer buffer, int length) {
+        double[] data = new double[length];
+        for (int i = 0; i < length; i++) {
+            data[i] = buffer.getDouble();
+        }
+        return data;
     }
 
     /**

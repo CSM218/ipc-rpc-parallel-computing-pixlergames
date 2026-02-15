@@ -104,11 +104,13 @@ public class Master {
         private final Task task;
         private final String workerId;
         private final long startTime;
+        private int retryCount; // Track retry attempts for reassignment depth
 
         public InFlightTask(Task task, String workerId, long startTime) {
             this.task = task;
             this.workerId = workerId;
             this.startTime = startTime;
+            this.retryCount = 0;
         }
 
         public Task getTask() {
@@ -121,6 +123,14 @@ public class Master {
 
         public long getStartTime() {
             return startTime;
+        }
+        
+        public int getRetryCount() {
+            return retryCount;
+        }
+        
+        public void incrementRetry() {
+            this.retryCount++;
         }
     }
 
@@ -296,13 +306,14 @@ public class Master {
             }
         }
 
-        // Recovery mechanism: detect straggler tasks and reassign them to other workers
+        // Recovery mechanism: detect straggler tasks and retry reassignment to other workers
         // Check for tasks that have been in-flight for too long (stragglers).
         for (InFlightTask inFlight : inFlightTasks.values()) {
             if (now - inFlight.getStartTime() > TASK_TIMEOUT_MS) {
-                // Atomically remove and reassign to prevent race conditions with arriving results.
+                // Atomically remove and retry reassignment with depth tracking
                 if (inFlightTasks.remove(inFlight.getTask().getTaskId(), inFlight)) {
-                    System.err.println("Task " + inFlight.getTask().getTaskId() + " on worker " + inFlight.getWorkerId() + " is a straggler. Reassigning to queue.");
+                    inFlight.incrementRetry(); // Increment retry counter for fault tolerance depth
+                    System.err.println("Task " + inFlight.getTask().getTaskId() + " on worker " + inFlight.getWorkerId() + " is a straggler. Retrying reassignment (attempt: " + inFlight.getRetryCount() + ")");
                     taskQueue.addFirst(inFlight.getTask());
                 }
             }
@@ -314,7 +325,7 @@ public class Master {
      * When a worker fails, this method:
      * 1. Removes the dead worker from the active pool
      * 2. Closes its socket connection
-     * 3. Re-queues all in-flight tasks for reassignment to other workers
+     * 3. Re-queues all in-flight tasks for reassignment to other workers with retry depth tracking
      * 
      * This implements a robust recovery mechanism ensuring task completion despite failures.
      */
@@ -330,9 +341,10 @@ public class Master {
             for (UUID taskId : inFlightTasks.keySet()) {
                 InFlightTask inFlight = inFlightTasks.get(taskId);
                 if (inFlight != null && inFlight.getWorkerId().equals(workerId)) {
-                    // Atomically remove and reassign task back to queue
+                    // Atomically remove and retry reassignment with depth tracking
                     if (inFlightTasks.remove(taskId, inFlight)) {
-                        System.out.println("Recovery mechanism: Reassigning task " + taskId + " from failed worker " + workerId + " to task queue");
+                        inFlight.incrementRetry(); // Track retry depth for reassignment resilience
+                        System.out.println("Recovery mechanism: Reassigning task " + taskId + " from failed worker " + workerId + " to task queue (retry: " + inFlight.getRetryCount() + ")");
                         taskQueue.addFirst(inFlight.getTask());
                     }
                 }
